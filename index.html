@@ -40,7 +40,7 @@
   let standingsMap = {};
   let sweepstake   = {};
 
-  // ── Data loading ─────────────────────────────────────────────
+  // LOAD DATA FROM API //
 
   async function loadData() {
     document.getElementById("status").style.display = "block";
@@ -95,7 +95,7 @@
     }
   }
 
-  // ── Helpers ──────────────────────────────────────────────────
+  // HELPER FUNCTIONS //
 
   function getPlayerTotals(teams) {
     return teams.reduce((tot, teamName) => {
@@ -126,7 +126,7 @@
     return `<span class="qs-badge ${cls}">${label}</span>`;
   }
 
-  // ── Rendering ─────────────────────────────────────────────────
+  // CREATE LEADERBOARD //
 
   function buildTeamRows(teams) {
     return teams.map(teamName => {
@@ -163,7 +163,7 @@
               - getPlayerTotals(sweepstake[a]).points
     );
 
-    // simpler sort
+    // order leaderboard by total points
     const players = Object.keys(sweepstake).sort(
       (a, b) => getPlayerTotals(sweepstake[b]).points - getPlayerTotals(sweepstake[a]).points
     );
@@ -241,13 +241,6 @@
   function toggleTheme() {
     const isDark = document.body.classList.toggle("light");
     document.querySelector(".theme-btn").textContent = isDark ? "☾" : "☀";
-    localStorage.setItem("theme", isDark ? "light" : "dark");
-  }
-
-  // Apply saved preference on load
-  if (localStorage.getItem("theme") === "light") {
-    document.body.classList.add("light");
-    document.querySelector(".theme-btn").textContent = "☾";
   }
 
   loadData();
