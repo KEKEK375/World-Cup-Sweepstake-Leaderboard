@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>World Cup 2026 Sweepstake</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header>
+  <div class="header-eyebrow">Canada · Mexico · USA</div>
+  <h1>World Cup <span>2026</span></h1>
+  <p class="header-sub">Sweepstake Standings — click a player to expand their teams</p>
+  <button class="theme-btn" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button>
+</header>
+
+<main>
+  <div id="status">
+    <div class="spinner"></div><br>Loading standings…
+  </div>
+
+  <div id="app" style="display:none">
+    <div class="refresh-bar">
+      Last updated: <span id="last-updated">—</span>
+      <button class="refresh-btn" onclick="loadData()">↻ Refresh</button>
+    </div>
+
+    <div class="section-label">Leaderboard</div>
+    <div class="leaderboard" id="leaderboard"></div>
+  </div>
+</main>
+
+<script>
+  const STANDINGS_URL = "https://api.fifa.com/api/v3/calendar/17/285023/289273/standing?language=en&count=200";
+  const SWEEPSTAKE_URL = "sweepstake.json";
+
+  let standingsMap = {};
+  let sweepstake   = {};
+
+  // ── Data loading ─────────────────────────────────────────────
+
+  async function loadData() {
+    document.getElementById("status").style.display = "block";
+    document.getElementById("app").style.display    = "none";
+    document.getElementById("status").innerHTML =
+      '<div class="spinner"></div><br>Loading standings…';
+
+    try {
+      const [standingsRes, sweepRes] = await Promise.all([
+        fetch(STANDINGS_URL, { headers: { "accept": "application/json" } }),
+        fetch(SWEEPSTAKE_URL)
+      ]);
+
+      if (!standingsRes.ok) throw new Error(`FIFA API returned ${standingsRes.status}`);
+      if (!sweepRes.ok)     throw new Error(`Could not load sweepstake.json (${sweepRes.status})`);
+
+      const standingsData = await standingsRes.json();
+      sweepstake = await sweepRes.json();
+
+      standingsMap = {};
+      for (const t of standingsData.Results) {
+        const name = t.Team.Name[0].Description;
+        standingsMap[name] = {
+          team:   name,
+          group:  t.Group[0].Description,
+          pos:    t.Position,
+          played: t.Played,
+          won:    t.Won,
+          drawn:  t.Drawn,
+          lost:   t.Lost,
+          gf:     t.For,
+          ga:     t.Against,
+          gd:     t.GoalsDiference,
+          tcs:    t.TeamConductScore,
+          points: t.Points,
+          qs:     t.QualificationStatus,
+        };
+      }
+
+      renderLeaderboard();
+
+      document.getElementById("last-updated").textContent = new Date().toLocaleTimeString();
+      document.getElementById("status").style.display = "none";
+      document.getElementById("app").style.display    = "block";
+
+    } catch (err) {
+      document.getElementById("status").innerHTML = `
+        <p class="error-msg">⚠ Could not load data</p>
+        <p class="cors-note">${err.message}<br><br>
+        If you're opening this file directly (file://), the FIFA API will block the request due to CORS.
+        Host via a local server (<code>python -m http.server</code>) or deploy to GitHub Pages.</p>`;
+    }
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────
+
+  function getPlayerTotals(teams) {
+    return teams.reduce((tot, teamName) => {
+      const t = standingsMap[teamName];
+      if (!t) return tot;
+      tot.played += t.played;
+      tot.won    += t.won;
+      tot.drawn  += t.drawn;
+      tot.lost   += t.lost;
+      tot.gf     += t.gf;
+      tot.ga     += t.ga;
+      tot.gd     += t.gd;
+      tot.tcs    += t.tcs;
+      tot.points += t.points;
+      return tot;
+    }, { played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, tcs: 0, points: 0 });
+  }
+
+  function fmtGD(n) { return n >= 0 ? `+${n}` : `${n}`; }
+
+  function qsBadge(qs) {
+    const map = {
+      Qualified:    ["qs-qualified",  "Qualified"],
+      CouldQualify: ["qs-could",      "Could Qualify"],
+      Eliminated:   ["qs-eliminated", "Eliminated"],
+    };
+    const [cls, label] = map[qs] ?? ["qs-undefined", "—"];
+    return `<span class="qs-badge ${cls}">${label}</span>`;
+  }
+
+  // ── Rendering ─────────────────────────────────────────────────
+
+  function buildTeamRows(teams) {
+    return teams.map(teamName => {
+      const t = standingsMap[teamName];
+      if (!t) return `
+        <tr class="team-row not-found-row">
+          <td colspan="12">${teamName} — not yet in standings</td>
+        </tr>`;
+
+      return `
+        <tr class="team-row">
+          <td class="team-cell">
+            <div class="team-name">${t.team}</div>
+            <div class="team-group">${t.group}</div>
+          </td>
+          <td>${t.pos}</td>
+          <td>${t.played}</td>
+          <td>${t.won}</td>
+          <td>${t.drawn}</td>
+          <td>${t.lost}</td>
+          <td>${t.gf}</td>
+          <td>${t.ga}</td>
+          <td>${fmtGD(t.gd)}</td>
+          <td>${t.tcs}</td>
+          <td class="pts-cell">${t.points}</td>
+          <td>${qsBadge(t.qs)}</td>
+        </tr>`;
+    }).join("");
+  }
+
+  function renderLeaderboard() {
+    const sorted = Object.keys(sweepstake).sort(
+      (a, b) => getPlayerTotals(b === a ? [] : sweepstake[b]).points
+              - getPlayerTotals(sweepstake[a]).points
+    );
+
+    // simpler sort
+    const players = Object.keys(sweepstake).sort(
+      (a, b) => getPlayerTotals(sweepstake[b]).points - getPlayerTotals(sweepstake[a]).points
+    );
+
+    const lb = document.getElementById("leaderboard");
+    lb.innerHTML = "";
+
+    players.forEach((person, i) => {
+      const rank    = i + 1;
+      const teams   = sweepstake[person];
+      const tot     = getPlayerTotals(teams);
+      const medal   = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : rank;
+      const rankCls = rank <= 3 ? `rank-${rank}` : "";
+
+      const card = document.createElement("div");
+      card.className = `player-card ${rankCls}`;
+
+      card.innerHTML = `
+        <div class="card-inner">
+          <div class="card-name-col">
+            <span class="rank-badge">${medal}</span>
+            <div>
+              <div class="player-name">${person}</div>
+              <div class="player-teams">${teams.join(" · ")}</div>
+            </div>
+          </div>
+
+          <div class="card-table-wrap">
+            <table class="card-table">
+              <thead>
+                <tr>
+                  <th class="col-team">Team</th>
+                  <th>Pos</th>
+                  <th>P</th>
+                  <th>W</th>
+                  <th>D</th>
+                  <th>L</th>
+                  <th>GF</th>
+                  <th>GA</th>
+                  <th>GD</th>
+                  <th>TCS</th>
+                  <th>Pts</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="totals-row">
+                  <td class="team-cell totals-label">Totals</td>
+                  <td>—</td>
+                  <td>${tot.played}</td>
+                  <td>${tot.won}</td>
+                  <td>${tot.drawn}</td>
+                  <td>${tot.lost}</td>
+                  <td>${tot.gf}</td>
+                  <td>${tot.ga}</td>
+                  <td>${fmtGD(tot.gd)}</td>
+                  <td>${tot.tcs}</td>
+                  <td class="pts-cell">${tot.points}</td>
+                  <td>—</td>
+                </tr>
+                ${buildTeamRows(teams)}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="expand-icon">▼</div>
+        </div>
+      `;
+
+      card.addEventListener("click", () => card.classList.toggle("active"));
+      lb.appendChild(card);
+    });
+  }
+
+  function toggleTheme() {
+    const isDark = document.body.classList.toggle("light");
+    document.querySelector(".theme-btn").textContent = isDark ? "☾" : "☀";
+    localStorage.setItem("theme", isDark ? "light" : "dark");
+  }
+
+  // Apply saved preference on load
+  if (localStorage.getItem("theme") === "light") {
+    document.body.classList.add("light");
+    document.querySelector(".theme-btn").textContent = "☾";
+  }
+
+  loadData();
+</script>
+</body>
+</html>
