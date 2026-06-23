@@ -118,9 +118,9 @@
 
   function qsBadge(qs) {
     const map = {
-      ConfirmedQualified:    ["qs-qualified",  "Confirmed Qualified"],
-      CouldQualify: ["qs-could",      "Could Qualify"],
-      Eliminated:   ["qs-eliminated", "Eliminated"],
+      ConfirmedQualified: ["qs-qualified",  "Qualified"],
+      CouldQualify:       ["qs-could",      "Could Qualify"],
+      Eliminated:         ["qs-eliminated", "Eliminated"],
     };
     const [cls, label] = map[qs] ?? ["qs-undefined", "—"];
     return `<span class="qs-badge ${cls}">${label}</span>`;
