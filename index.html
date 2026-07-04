@@ -206,8 +206,6 @@
       const homeId    = m.Home?.IdCountry ?? "";
       const awayId    = m.Away?.IdCountry ?? "";
       const stage     = m.StageName?.[0]?.Description ?? "";
-      const stadium   = m.Stadium?.Name?.[0]?.Description ?? "";
-      const city      = m.Stadium?.CityName?.[0]?.Description ?? "";
       const homeOwner = sweepstakeOwner(home);
       const awayOwner = sweepstakeOwner(away);
 
@@ -235,7 +233,6 @@
             </div>
 
           </div>
-          <div class="fixture-venue">&#128205; ${stadium}, ${city}</div>
         </div>`;
     }).join("");
   }
