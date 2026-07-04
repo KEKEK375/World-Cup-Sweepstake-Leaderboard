@@ -346,6 +346,98 @@ main {
 
 .player-card.active .expand-icon { transform: rotate(180deg); }
 
+/* ── Upcoming Matches Section ── */
+.fixtures {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.fixture {
+  justify-content: center;
+  display: inline-flex;
+}
+
+.fixture-inner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 35%;
+  flex-shrink: 0;
+  padding: 0.85rem 1rem 0.85rem 1.25rem;
+}
+
+.fixture-center {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+  margin-inline: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 20%;
+  flex-shrink: 0;
+  padding: 0.85rem 1rem 0.85rem 1.25rem;
+}
+
+.flag {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  min-width: 1.8rem;
+  text-align: center;
+  line-height: 1;
+}
+
+.fixture-player {
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.fixture-team {
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.fixture-score {
+  padding: 0.6rem 0.6rem;
+  text-align: center;
+  vertical-align: middle;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: none;
+}
+
+.versus {
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.round {
+  text-align: center;
+  font-weight: 300;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.date {
+  text-align: center;
+  font-weight: 100;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
 /* ── Loading / error ── */
 #status {
   text-align: center;
@@ -376,3 +468,4 @@ main {
   margin-left: auto; margin-right: auto;
   line-height: 1.6;
 }
+

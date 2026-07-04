@@ -27,17 +27,21 @@
       Last updated: <span id="last-updated">—</span>
       <button class="refresh-btn" onclick="loadData()">↻ Refresh</button>
     </div>
-
-    <div class="section-label">Leaderboard</div>
-    <div class="leaderboard" id="leaderboard"></div>
+    <div class="section-label">Upcoming Matches</div>
+    <div class="fixtures" id="fixtures"></div>
+    <br>
+    <div class="section-label">Qualifiers Leaderboard (Finished)</div>
+    <div class="leaderboard" id="round-leaderboard"></div>
   </div>
 </main>
 
 <script>
   const STANDINGS_URL = "https://api.fifa.com/api/v3/calendar/17/285023/289273/standing?language=en&count=200";
+  const TOURNAMENT_URL = "https://api.fifa.com/api/v3/calendar/matches?language=en&count=100&idSeason=285023&from=2026-06-28"
   const SWEEPSTAKE_URL = "sweepstake.json";
 
   let standingsMap = {};
+  let tournamentMap = {};
   let sweepstake   = {};
 
   // LOAD DATA FROM API //
@@ -49,43 +53,18 @@
       '<div class="spinner"></div><br>Loading standings…';
 
     try {
-      const [standingsRes, sweepRes] = await Promise.all([
-        fetch(STANDINGS_URL, { headers: { "accept": "application/json" } }),
+      const [sweepRes] = await Promise.all([
         fetch(SWEEPSTAKE_URL)
       ]);
-
-      if (!standingsRes.ok) throw new Error(`FIFA API returned ${standingsRes.status}`);
-      if (!sweepRes.ok)     throw new Error(`Could not load sweepstake.json (${sweepRes.status})`);
-
-      const standingsData = await standingsRes.json();
+      if (!sweepRes.ok) throw new Error(`Could not load sweepstake.json (${sweepRes.status})`);
       sweepstake = await sweepRes.json();
 
-      standingsMap = {};
-      for (const t of standingsData.Results) {
-        const name = t.Team.Name[0].Description;
-        standingsMap[name] = {
-          team:   name,
-          group:  t.Group[0].Description,
-          pos:    t.Position,
-          played: t.Played,
-          won:    t.Won,
-          drawn:  t.Drawn,
-          lost:   t.Lost,
-          gf:     t.For,
-          ga:     t.Against,
-          gd:     t.GoalsDiference,
-          tcs:    t.TeamConductScore,
-          points: t.Points,
-          qs:     t.QualificationStatus,
-        };
-      }
-
-      renderLeaderboard();
+      loadTournamentData();
+      loadStandingsData();
 
       document.getElementById("last-updated").textContent = new Date().toLocaleTimeString();
       document.getElementById("status").style.display = "none";
       document.getElementById("app").style.display    = "block";
-
     } catch (err) {
       document.getElementById("status").innerHTML = `
         <p class="error-msg">⚠ Could not load data</p>
@@ -93,6 +72,71 @@
         If you're opening this file directly (file://), the FIFA API will block the request due to CORS.
         Host via a local server (<code>python -m http.server</code>) or deploy to GitHub Pages.</p>`;
     }
+  }
+
+  async function loadTournamentData() {
+    const [tournamentRes] = await Promise.all([
+      fetch(TOURNAMENT_URL, { headers: { "accept": "application/json" } })
+    ]);
+
+    if (!tournamentRes.ok) throw new Error(`FIFA API returned ${tournamentRes.status}`)
+
+    const tournamentData = await tournamentRes.json();
+
+    tournamentMap = {};
+    for (const m of tournamentData.Results) {
+      const matchId = m.IdMatch;
+      ht = m.Home != null ? m.Home.TeamName[0].Description : "TBD"
+      at = m.Away != null ? m.Away.TeamName[0].Description : "TBD"
+      w  = m.Winner != null ? m.Home.IdTeam : "TBD"
+      hi = m.Home != null ? m.Home.IdCountry : ""
+      ai = m.Away != null ? m.Away.IdCountry : ""
+      tournamentMap[matchId] = {
+        homeTeam:     ht,
+        awayTeam:     at,
+        matchStatus:  m.MatchStatus, // 0: finished, 1: not started, 2: ?, 3: mid-match
+        dateTime:     m.Date,
+        winner:       w, // True for home win, false for away
+        homeScore:    m.HomeTeamScore ?? 0,
+        awayScore:    m.AwayTeamScore ?? 0,
+        homeId:       hi,
+        awayId:       ai,
+        stage:        m.StageName[0].Description,
+      }
+    }
+    renderUpcomingMatches();
+  }
+
+  async function loadStandingsData() {
+    const [standingsRes] = await Promise.all([
+      fetch(STANDINGS_URL, { headers: { "accept": "application/json" } })
+    ]);
+
+    if (!standingsRes.ok) throw new Error(`FIFA API returned ${standingsRes.status}`);
+
+    const standingsData = await standingsRes.json();
+
+    standingsMap = {};
+    for (const t of standingsData.Results) {
+      const name = t.Team.Name[0].Description;
+      standingsMap[name] = {
+        team:   name,
+        group:  t.Group[0].Description,
+        pos:    t.Position,
+        played: t.Played,
+        won:    t.Won,
+        drawn:  t.Drawn,
+        lost:   t.Lost,
+        gf:     t.For,
+        ga:     t.Against,
+        gd:     t.GoalsDiference,
+        tcs:    t.TeamConductScore,
+        points: t.Points,
+        qs:     t.QualificationStatus,
+      };
+    }
+
+    renderQualifiersLeaderboard();
   }
 
   // HELPER FUNCTIONS //
@@ -157,18 +201,16 @@
     }).join("");
   }
 
-  function renderLeaderboard() {
-    const sorted = Object.keys(sweepstake).sort(
-      (a, b) => getPlayerTotals(b === a ? [] : sweepstake[b]).points
-              - getPlayerTotals(sweepstake[a]).points
-    );
+  function getPlayerFromTeam(team) {
+    return Object.keys(sweepstake).find(x => sweepstake[x].includes(team)) //TODO: fix if TBD
+  }
 
-    // order leaderboard by total points
+  function renderQualifiersLeaderboard() {// order leaderboard by total points
     const players = Object.keys(sweepstake).sort(
       (a, b) => getPlayerTotals(sweepstake[b]).points - getPlayerTotals(sweepstake[a]).points
     );
 
-    const lb = document.getElementById("leaderboard");
+    const lb = document.getElementById("round-leaderboard");
     lb.innerHTML = "";
 
     players.forEach((person, i) => {
@@ -235,6 +277,65 @@
 
       card.addEventListener("click", () => card.classList.toggle("active"));
       lb.appendChild(card);
+    });
+  }
+
+  function renderUpcomingMatches() {
+    const fixtures = document.getElementById("fixtures");
+    fixtures.innerHTML = "";
+
+    const matches = Object.keys(tournamentMap).sort(
+      (a, b) => {
+        return tournamentMap[a].dateTime > tournamentMap[b].dateTime ? 1 : -1
+      }
+    ).filter(
+      (key, i) => {return tournamentMap[key].matchStatus == 1 || tournamentMap[key].matchStatus == 3}
+    ).splice(0, 3)
+
+    matches.forEach((id, i) => {
+      match = tournamentMap[id];
+
+      const homePlayer = match.homeTeam != "TBD" ? getPlayerFromTeam(match.homeTeam) : "TBD";
+      const awayPlayer = match.awayTeam != "TBD" ? getPlayerFromTeam(match.awayTeam) : "TBD";
+
+      const card = document.createElement("div");
+      card.className = `fixture`;
+
+      homeSrc = match.homeId != "" ? `https://api.fifa.com/api/v3/picture/flags-sq-1/${match.homeId}` : ""
+      awaySrc = match.awayId != "" ? `https://api.fifa.com/api/v3/picture/flags-sq-1/${match.awayId}` : ""
+
+      card.innerHTML = `
+        <div class="fixture-inner">
+          <div class="flag">
+            <img src=${homeSrc}>
+          </div>
+          <div>
+            <div class="fixture-player">${homePlayer}</div>
+            <div class="fixture-team">${match.homeTeam}</div>
+          </div>
+          <div>
+            <div class="fixture-score">${match.homeScore}</div>
+          </div>
+        </div>
+        <div class="fixture-center">
+          <div class="versus">VS</div>
+          <div class="round">${match.stage}</div>
+          <div class="date">${match.dateTime.slice(0,10)}</div>
+        </div>
+        <div class="fixture-inner">
+          <div class="flag">
+            <img src=${awaySrc}>
+          </div>
+          <div>
+            <div class="fixture-player">${awayPlayer}</div>
+            <div class="fixture-team">${match.awayTeam}</div>
+          </div>
+          <div>
+            <div class="fixture-score">${match.awayScore}</div>
+          </div>
+        </div>
+      `;
+      fixtures.appendChild(card);
     });
   }
 
