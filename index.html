@@ -28,21 +28,27 @@
       <button class="refresh-btn" onclick="loadData()">↻ Refresh</button>
     </div>
     <div class="section-label">Upcoming Matches</div>
-    <div class="fixtures" id="fixtures"></div>
-    <br>
+    <div id="fixtures"></div>
+
+    <div class="section-label">Knockout Stage</div>
+    <div id="knockout-tracker"></div>
+
     <div class="section-label">Qualifiers Leaderboard (Finished)</div>
     <div class="leaderboard" id="round-leaderboard"></div>
   </div>
 </main>
 
 <script>
-  const STANDINGS_URL = "https://api.fifa.com/api/v3/calendar/17/285023/289273/standing?language=en&count=200";
-  const TOURNAMENT_URL = "https://api.fifa.com/api/v3/calendar/matches?language=en&count=100&idSeason=285023&from=2026-06-28"
+  const STANDINGS_URL  = "https://api.fifa.com/api/v3/calendar/17/285023/289273/standing?language=en&count=200";
+  const MATCHES_URL    = "https://api.fifa.com/api/v3/calendar/matches?language=en&count=500&idSeason=285023&from=2026-06-28";
   const SWEEPSTAKE_URL = "sweepstake.json";
 
-  let standingsMap = {};
-  let tournamentMap = {};
-  let sweepstake   = {};
+  let standingsMap    = {};
+  let teamIdMap       = {};
+  let sweepstake      = {};
+  let knockoutMatches = [];
+  let eliminatedIds   = new Set();
+  let eliminatedRound = {};  // IdTeam -> round name they were knocked out in
 
   // LOAD DATA FROM API //
 
@@ -53,18 +59,74 @@
       '<div class="spinner"></div><br>Loading standings…';
 
     try {
-      const [sweepRes] = await Promise.all([
+      const [standingsRes, matchesRes, sweepRes] = await Promise.all([
+        fetch(STANDINGS_URL,  { headers: { "accept": "application/json" } }),
+        fetch(MATCHES_URL,    { headers: { "accept": "application/json" } }),
         fetch(SWEEPSTAKE_URL)
       ]);
-      if (!sweepRes.ok) throw new Error(`Could not load sweepstake.json (${sweepRes.status})`);
+
+      if (!standingsRes.ok) throw new Error(`FIFA standings API returned ${standingsRes.status}`);
+      if (!matchesRes.ok)   throw new Error(`FIFA matches API returned ${matchesRes.status}`);
+      if (!sweepRes.ok)     throw new Error(`Could not load sweepstake.json (${sweepRes.status})`);
+
+      const standingsData = await standingsRes.json();
+      const matchesData   = await matchesRes.json();
       sweepstake = await sweepRes.json();
 
-      loadTournamentData();
-      loadStandingsData();
+      // Build group stage standings map
+      standingsMap = {};
+      teamIdMap    = {};
+      for (const t of standingsData.Results) {
+        const name = t.Team.Name[0].Description;
+        const id   = t.Team.IdTeam;
+        standingsMap[name] = {
+          id,
+          team:    name,
+          country: t.Team.IdAssociation,
+          group:   t.Group[0].Description,
+          pos:     t.Position,
+          played:  t.Played,
+          won:     t.Won,
+          drawn:   t.Drawn,
+          lost:    t.Lost,
+          gf:      t.For,
+          ga:      t.Against,
+          gd:      t.GoalsDiference,
+          tcs:     t.TeamConductScore,
+          points:  t.Points,
+          qs:      t.QualificationStatus,
+        };
+        teamIdMap[id] = name;
+      }
+
+      // Separate knockout matches
+      const allMatches = matchesData.Results || [];
+      knockoutMatches  = allMatches.filter(m => m.StageName?.[0]?.Description !== "First Stage");
+
+      // Build eliminated set + track which round they went out in
+      eliminatedIds   = new Set();
+      eliminatedRound = {};
+      for (const m of knockoutMatches) {
+        if (m.MatchStatus === 0 && m.Winner) {
+          const homeId  = m.Home?.IdTeam;
+          const awayId  = m.Away?.IdTeam;
+          const loserId = homeId === m.Winner ? awayId : homeId;
+          const round   = m.StageName?.[0]?.Description ?? "Knockout";
+          if (loserId) {
+            eliminatedIds.add(loserId);
+            eliminatedRound[loserId] = round;
+          }
+        }
+      }
+
+      renderFixtures(allMatches);
+      renderKnockoutTracker();
+      renderQualifiersLeaderboard();
 
       document.getElementById("last-updated").textContent = new Date().toLocaleTimeString();
       document.getElementById("status").style.display = "none";
       document.getElementById("app").style.display    = "block";
+
     } catch (err) {
       document.getElementById("status").innerHTML = `
         <p class="error-msg">⚠ Could not load data</p>
@@ -72,71 +134,6 @@
         If you're opening this file directly (file://), the FIFA API will block the request due to CORS.
         Host via a local server (<code>python -m http.server</code>) or deploy to GitHub Pages.</p>`;
     }
-  }
-
-  async function loadTournamentData() {
-    const [tournamentRes] = await Promise.all([
-      fetch(TOURNAMENT_URL, { headers: { "accept": "application/json" } })
-    ]);
-
-    if (!tournamentRes.ok) throw new Error(`FIFA API returned ${tournamentRes.status}`)
-
-    const tournamentData = await tournamentRes.json();
-
-    tournamentMap = {};
-    for (const m of tournamentData.Results) {
-      const matchId = m.IdMatch;
-      ht = m.Home != null ? m.Home.TeamName[0].Description : "TBD"
-      at = m.Away != null ? m.Away.TeamName[0].Description : "TBD"
-      w  = m.Winner != null ? m.Home.IdTeam : "TBD"
-      hi = m.Home != null ? m.Home.IdCountry : ""
-      ai = m.Away != null ? m.Away.IdCountry : ""
-      tournamentMap[matchId] = {
-        homeTeam:     ht,
-        awayTeam:     at,
-        matchStatus:  m.MatchStatus, // 0: finished, 1: not started, 2: ?, 3: mid-match
-        dateTime:     m.Date,
-        winner:       w, // True for home win, false for away
-        homeScore:    m.HomeTeamScore ?? 0,
-        awayScore:    m.AwayTeamScore ?? 0,
-        homeId:       hi,
-        awayId:       ai,
-        stage:        m.StageName[0].Description,
-      }
-    }
-    renderUpcomingMatches();
-  }
-
-  async function loadStandingsData() {
-    const [standingsRes] = await Promise.all([
-      fetch(STANDINGS_URL, { headers: { "accept": "application/json" } })
-    ]);
-
-    if (!standingsRes.ok) throw new Error(`FIFA API returned ${standingsRes.status}`);
-
-    const standingsData = await standingsRes.json();
-
-    standingsMap = {};
-    for (const t of standingsData.Results) {
-      const name = t.Team.Name[0].Description;
-      standingsMap[name] = {
-        team:   name,
-        group:  t.Group[0].Description,
-        pos:    t.Position,
-        played: t.Played,
-        won:    t.Won,
-        drawn:  t.Drawn,
-        lost:   t.Lost,
-        gf:     t.For,
-        ga:     t.Against,
-        gd:     t.GoalsDiference,
-        tcs:    t.TeamConductScore,
-        points: t.Points,
-        qs:     t.QualificationStatus,
-      };
-    }
-
-    renderQualifiersLeaderboard();
   }
 
   // HELPER FUNCTIONS //
@@ -158,7 +155,25 @@
     }, { played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, tcs: 0, points: 0 });
   }
 
-  function fmtGD(n) { return n >= 1 ? `+${n}` : `${n}`; }
+  function fmtGD(n) { return n > 0 ? `+${n}` : `${n}`; }
+
+  function fmtDate(utcStr) {
+    return new Date(utcStr).toLocaleString("en-GB", {
+      weekday: "short", day: "numeric", month: "short",
+      hour: "2-digit", minute: "2-digit", timeZoneName: "short"
+    });
+  }
+
+  function flagUrl(countryId) {
+    return countryId ? `https://api.fifa.com/api/v3/picture/flags-sq-1/${countryId}` : "";
+  }
+
+  function sweepstakeOwner(teamName) {
+    for (const [person, teams] of Object.entries(sweepstake)) {
+      if (teams.includes(teamName)) return person;
+    }
+    return null;
+  }
 
   function qsBadge(qs) {
     const map = {
@@ -170,7 +185,131 @@
     return `<span class="qs-badge ${cls}">${label}</span>`;
   }
 
-  // CREATE LEADERBOARD //
+  // UPCOMING FIXTURES //
+
+  function renderFixtures(allMatches) {
+    const container = document.getElementById("fixtures");
+
+    const upcoming = allMatches
+      .filter(m => m.MatchStatus === 1 || m.MatchStatus === 3)
+      .sort((a, b) => new Date(a.Date) - new Date(b.Date))
+      .slice(0, 3);
+
+    if (!upcoming.length) {
+      container.innerHTML = `<p class="muted-note">No upcoming matches.</p>`;
+      return;
+    }
+
+    container.innerHTML = upcoming.map(m => {
+      const home      = m.Home?.TeamName?.[0]?.Description ?? "TBD";
+      const away      = m.Away?.TeamName?.[0]?.Description ?? "TBD";
+      const homeId    = m.Home?.IdCountry ?? "";
+      const awayId    = m.Away?.IdCountry ?? "";
+      const stage     = m.StageName?.[0]?.Description ?? "";
+      const stadium   = m.Stadium?.Name?.[0]?.Description ?? "";
+      const city      = m.Stadium?.CityName?.[0]?.Description ?? "";
+      const homeOwner = sweepstakeOwner(home);
+      const awayOwner = sweepstakeOwner(away);
+
+      return `
+        <div class="fixture-card">
+          <div class="fixture-meta">${stage} &middot; ${fmtDate(m.Date)}</div>
+          <div class="fixture-body">
+
+            <div class="fixture-team fixture-home">
+              <img class="fixture-flag" src="${flagUrl(homeId)}" alt="${home}" />
+              <div class="fixture-info">
+                ${homeOwner ? `<div class="fixture-owner">${homeOwner}</div>` : `<div class="fixture-owner fixture-owner-none">&nbsp;</div>`}
+                <div class="fixture-name">${home}</div>
+              </div>
+            </div>
+
+            <div class="fixture-vs">VS</div>
+
+            <div class="fixture-team fixture-away">
+              <div class="fixture-info fixture-info-right">
+                ${awayOwner ? `<div class="fixture-owner">${awayOwner}</div>` : `<div class="fixture-owner fixture-owner-none">&nbsp;</div>`}
+                <div class="fixture-name">${away}</div>
+              </div>
+              <img class="fixture-flag" src="${flagUrl(awayId)}" alt="${away}" />
+            </div>
+
+          </div>
+          <div class="fixture-venue">&#128205; ${stadium}, ${city}</div>
+        </div>`;
+    }).join("");
+  }
+
+  // KNOCKOUT TRACKER //
+
+  function renderKnockoutTracker() {
+    const container = document.getElementById("knockout-tracker");
+
+    const qualifiedQs = new Set(["Qualified", "ConfirmedQualified"]);
+
+    // Sort by number of teams still alive in the knockout stage
+    const players = Object.keys(sweepstake).sort((a, b) => {
+      const alive = p => sweepstake[p].filter(t => {
+        const id = standingsMap[t]?.id;
+        return id && qualifiedQs.has(standingsMap[t]?.qs) && !eliminatedIds.has(id);
+      }).length;
+      return alive(b) - alive(a);
+    });
+
+    container.innerHTML = `<div class="ko-grid">${players.map(person => {
+      const teams = sweepstake[person];
+
+      const aliveCount = teams.filter(teamName => {
+        const t = standingsMap[teamName];
+        return t && qualifiedQs.has(t.qs) && !eliminatedIds.has(t.id);
+      }).length;
+
+      // Show ALL three teams — group stage exits included
+      const teamRows = teams.map(teamName => {
+        const t         = standingsMap[teamName];
+        const id        = t?.id;
+        const countryId = t?.country ?? "";
+        const qs        = t?.qs ?? "Unknown";
+
+        let badgeCls, badgeLabel, rowCls;
+
+        if (!qualifiedQs.has(qs)) {
+          // Knocked out in group stage
+          badgeCls   = "ko-badge-out";
+          badgeLabel = "Group Stage";
+          rowCls     = "ko-row-out";
+        } else if (eliminatedIds.has(id)) {
+          // Made it to knockouts but since eliminated
+          badgeCls   = "ko-badge-out";
+          badgeLabel = eliminatedRound[id] ?? "Eliminated";
+          rowCls     = "ko-row-out";
+        } else {
+          // Still in the tournament
+          badgeCls   = "ko-badge-in";
+          badgeLabel = "Still In";
+          rowCls     = "ko-row-in";
+        }
+
+        return `
+          <div class="ko-team-row ${rowCls}">
+            <img class="ko-flag" src="${flagUrl(countryId)}" alt="${teamName}" />
+            <span class="ko-team-name">${teamName}</span>
+            <span class="ko-status-badge ${badgeCls}">${badgeLabel}</span>
+          </div>`;
+      }).join("");
+
+      return `
+        <div class="ko-card ${aliveCount === 0 ? 'ko-all-out' : ''}">
+          <div class="ko-card-header">
+            <span class="ko-person">${person}</span>
+            <span class="ko-alive-pill ${aliveCount > 0 ? 'pill-alive' : 'pill-dead'}">${aliveCount} still in</span>
+          </div>
+          <div class="ko-team-list">${teamRows}</div>
+        </div>`;
+    }).join("")}</div>`;
+  }
+
+  // GROUP STAGE LEADERBOARD //
 
   function buildTeamRows(teams) {
     return teams.map(teamName => {
@@ -201,11 +340,7 @@
     }).join("");
   }
 
-  function getPlayerFromTeam(team) {
-    return Object.keys(sweepstake).find(x => sweepstake[x].includes(team)) //TODO: fix if TBD
-  }
-
-  function renderQualifiersLeaderboard() {// order leaderboard by total points
+  function renderQualifiersLeaderboard() {
     const players = Object.keys(sweepstake).sort(
       (a, b) => getPlayerTotals(sweepstake[b]).points - getPlayerTotals(sweepstake[a]).points
     );
@@ -232,7 +367,6 @@
               <div class="player-teams">${teams.join(" · ")}</div>
             </div>
           </div>
-
           <div class="card-table-wrap">
             <table class="card-table">
               <thead>
@@ -280,64 +414,7 @@
     });
   }
 
-  function renderUpcomingMatches() {
-    const fixtures = document.getElementById("fixtures");
-    fixtures.innerHTML = "";
-
-    const matches = Object.keys(tournamentMap).sort(
-      (a, b) => {
-        return tournamentMap[a].dateTime > tournamentMap[b].dateTime ? 1 : -1
-      }
-    ).filter(
-      (key, i) => {return tournamentMap[key].matchStatus == 1 || tournamentMap[key].matchStatus == 3}
-    ).splice(0, 3)
-
-    matches.forEach((id, i) => {
-      match = tournamentMap[id];
-
-      const homePlayer = match.homeTeam != "TBD" ? getPlayerFromTeam(match.homeTeam) : "TBD";
-      const awayPlayer = match.awayTeam != "TBD" ? getPlayerFromTeam(match.awayTeam) : "TBD";
-
-      const card = document.createElement("div");
-      card.className = `fixture`;
-
-      homeSrc = match.homeId != "" ? `https://api.fifa.com/api/v3/picture/flags-sq-1/${match.homeId}` : ""
-      awaySrc = match.awayId != "" ? `https://api.fifa.com/api/v3/picture/flags-sq-1/${match.awayId}` : ""
-
-      card.innerHTML = `
-        <div class="fixture-inner">
-          <div class="flag">
-            <img src=${homeSrc}>
-          </div>
-          <div>
-            <div class="fixture-player">${homePlayer}</div>
-            <div class="fixture-team">${match.homeTeam}</div>
-          </div>
-          <div>
-            <div class="fixture-score">${match.homeScore}</div>
-          </div>
-        </div>
-        <div class="fixture-center">
-          <div class="versus">VS</div>
-          <div class="round">${match.stage}</div>
-          <div class="date">${match.dateTime.slice(0,10)}</div>
-        </div>
-        <div class="fixture-inner">
-          <div class="flag">
-            <img src=${awaySrc}>
-          </div>
-          <div>
-            <div class="fixture-player">${awayPlayer}</div>
-            <div class="fixture-team">${match.awayTeam}</div>
-          </div>
-          <div>
-            <div class="fixture-score">${match.awayScore}</div>
-          </div>
-        </div>
-      `;
-      fixtures.appendChild(card);
-    });
-  }
+  // LIGHT/DARK MODE //
 
   function toggleTheme() {
     const isDark = document.body.classList.toggle("light");

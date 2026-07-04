@@ -2,7 +2,7 @@
 
 :root {
   --bg:           #0a0f1e;
-  --bg-alt:          #f4f6f9;
+  --bg-alt:       #f4f6f9;
   --surface:      #111827;
   --surface-alt:  #0d1520;
   --border:       #1e2d40;
@@ -19,18 +19,18 @@
 
 /* ── Light mode overrides ── */
 body.light {
-  --bg:          #f4f6f9;
-  --bg-alt:         #0a0f1e;
-  --surface:     #ffffff;
+  --bg:        #f4f6f9;
+  --bg-alt:    #0a0f1e;
+  --surface:   #ffffff;
   --surface-alt: #f0f2f5;
-  --border:      #dde2eb;
-  --text:        #0a0f1e;
-  --muted:       #7a8499;
-  --green:        #008a3a;
-  --green-dim:    #008a3a14;
-  --gold:         #b8860b;
-  --silver:       #707070;
-  --bronze:       #8b4513;
+  --border:    #dde2eb;
+  --text:      #0a0f1e;
+  --muted:     #5a6478;
+  --green:     #008a3a;
+  --green-dim: #008a3a14;
+  --gold:      #b8860b;
+  --silver:    #707070;
+  --bronze:    #8b4513;
 }
 
 body {
@@ -126,6 +126,7 @@ main {
   font-size: 1.5rem;
   letter-spacing: 0.05em;
   color: var(--muted);
+  margin-top: 2rem;
   margin-bottom: 1rem;
   padding-bottom: 0.4rem;
   border-bottom: 1px solid var(--border);
@@ -153,10 +154,220 @@ main {
   font-family: var(--font-body);
   transition: border-color 0.2s, color 0.2s;
 }
-
 .refresh-btn:hover { border-color: var(--green); color: var(--green); }
 
-/* ── Leaderboard ── */
+.muted-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 0.5rem 0;
+}
+
+/* ═══════════════════════════════════
+   FIXTURES
+═══════════════════════════════════ */
+
+#fixtures {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.fixture-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: clamp(0.6rem, 2vw, 1rem) clamp(0.75rem, 2.5vw, 1.25rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.fixture-meta {
+  font-size: clamp(0.6rem, 1.2vw, 0.68rem);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--green);
+}
+
+.fixture-body {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.4rem, 1.5vw, 0.75rem);
+}
+
+/* Each team side */
+.fixture-team {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: clamp(0.4rem, 1.2vw, 0.65rem);
+  min-width: 0;
+}
+
+.fixture-home { justify-content: flex-start; }
+.fixture-away { justify-content: flex-end; }
+.fixture-away .fixture-info { align-items: flex-end; }
+
+.fixture-flag {
+  width:  clamp(28px, 5vw, 40px);
+  height: clamp(28px, 5vw, 40px);
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+
+.fixture-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.fixture-info-right { text-align: right; }
+
+.fixture-owner {
+  font-size: clamp(0.65rem, 1.3vw, 0.78rem);
+  font-weight: 700;
+  color: var(--green);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fixture-owner-none { visibility: hidden; }
+
+.fixture-name {
+  font-size: clamp(0.75rem, 1.8vw, 0.95rem);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fixture-vs {
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 3vw, 1.4rem);
+  color: var(--muted);
+  flex-shrink: 0;
+  text-align: center;
+  min-width: clamp(24px, 4vw, 36px);
+}
+
+/* ═══════════════════════════════════
+   KNOCKOUT TRACKER
+═══════════════════════════════════ */
+
+.ko-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.ko-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ko-card.ko-all-out { opacity: 0.55; }
+
+.ko-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.ko-person {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.ko-alive-pill {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.5rem;
+  border-radius: 20px;
+}
+
+.pill-alive { background: #00c85328; color: var(--green); }
+.pill-dead  { background: #ff000018; color: #ff6b6b; }
+
+.ko-team-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.ko-team-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.ko-team-row:last-child { border-bottom: none; }
+
+.ko-row-out { opacity: 0.6; }
+
+.ko-flag {
+  width: 22px;
+  height: 22px;
+  object-fit: cover;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+
+.ko-team-name {
+  flex: 1;
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ko-status-badge {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ko-badge-in    { background: #00c85328; color: var(--green); }
+.ko-badge-out   { background: #ff000020; color: #ff6b6b; }
+.ko-badge-group { background: #ffffff10; color: var(--muted); }
+
+.ko-no-teams {
+  padding: 0.6rem 0.75rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* Light mode badge overrides */
+body.light .ko-badge-out   { background: #ff000015; color: #cc0000; }
+body.light .ko-badge-in    { background: #008a3a15; color: #008a3a; }
+body.light .pill-alive    { background: #008a3a15; color: #008a3a; }
+body.light .pill-dead     { background: #cc000015; color: #cc0000; }
+
+/* ═══════════════════════════════════
+   LEADERBOARD
+═══════════════════════════════════ */
+
 .leaderboard {
   display: flex;
   flex-direction: column;
@@ -296,8 +507,8 @@ main {
 
 .team-row td:first-child { text-align: left; }
 
-.team-cell { text-align: left; }
-.team-name { font-weight: 500; font-size: 0.8rem; }
+.team-cell  { text-align: left; }
+.team-name  { font-weight: 500; font-size: 0.8rem; }
 .team-group { font-size: 0.68rem; color: var(--muted); margin-top: 0.1rem; }
 
 /* Points cell */
@@ -324,6 +535,10 @@ main {
 .qs-eliminated { background: #ff000020; color: #ff6b6b; }
 .qs-undefined  { background: #ffffff0e; color: var(--muted); }
 
+body.light .qs-eliminated { background: #ff000015; color: #cc0000; }
+body.light .qs-qualified  { background: #008a3a15; color: #008a3a; }
+body.light .qs-could      { background: #b8860b15; color: #b8860b; }
+
 /* ── Not found row ── */
 .not-found-row td {
   color: var(--muted);
@@ -346,99 +561,10 @@ main {
 
 .player-card.active .expand-icon { transform: rotate(180deg); }
 
-/* ── Upcoming Matches Section ── */
-.fixtures {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
+/* ═══════════════════════════════════
+   LOADING / ERROR
+═══════════════════════════════════ */
 
-.fixture {
-  justify-content: center;
-  display: inline-flex;
-}
-
-.fixture-inner {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-  transition: border-color 0.2s;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  width: 35%;
-  flex-shrink: 0;
-  padding: 0.85rem 1rem 0.85rem 1.25rem;
-}
-
-.fixture-center {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-  transition: border-color 0.2s;
-  margin-inline: 0.5rem;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  width: 20%;
-  flex-shrink: 0;
-  padding: 0.85rem 1rem 0.85rem 1.25rem;
-}
-
-.flag {
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  min-width: 1.8rem;
-  text-align: center;
-  line-height: 1;
-}
-
-.fixture-player {
-  font-weight: 600;
-  font-size: 0.95rem;
-  white-space: nowrap;
-}
-
-.fixture-team {
-  font-weight: 600;
-  font-size: 0.95rem;
-  white-space: nowrap;
-}
-
-.fixture-score {
-  padding: 0.6rem 0.6rem;
-  text-align: center;
-  vertical-align: middle;
-  font-weight: 600;
-  color: var(--text);
-  border-bottom: none;
-}
-
-.versus {
-  text-align: center;
-  font-weight: 600;
-  font-size: 0.95rem;
-  white-space: nowrap;
-}
-
-.round {
-  text-align: center;
-  font-weight: 300;
-  font-size: 0.85rem;
-  white-space: nowrap;
-}
-
-.date {
-  text-align: center;
-  font-weight: 100;
-  font-size: 0.7rem;
-  white-space: nowrap;
-}
-
-/* ── Loading / error ── */
 #status {
   text-align: center;
   padding: 4rem 2rem;
@@ -468,4 +594,3 @@ main {
   margin-left: auto; margin-right: auto;
   line-height: 1.6;
 }
-
